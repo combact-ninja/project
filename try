@@ -1,0 +1,29 @@
+import pandas as pd
+from transformers import BertTokenizer
+import lightgbm as lgb
+# read
+data = pd.read_csv('articles.csv', encoding='cp1252')
+print(data.shape)
+
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+two_sentences = ['this is the first sentence', 'another sentence']
+tokenized_sentences = tokenizer(two_sentences)
+
+
+def ML_MOdel(xtrain, ytrain, xtest, ytest):
+    from sklearn import metrics
+    model=lgb.LGBMClassifier(
+        boosting_type='gbdt',objective='binary',metrics='logloss',
+        feature_fraction = 0.36341113351903775 ,
+        lambda_l1 = 1.4306966747518972 ,
+        lambda_l2 = 1.1342572678210154 ,
+        learning_rate = 0.16988128303403846 ,
+        max_depth =int( 4.877875879142252 ),
+        min_data_in_leaf =int( 11.346596901866913 ),
+        min_gain_to_split = 0.9807641983846155 ,
+        min_sum_hessian_in_leaf = 0.006851449088462784 ,
+        num_leaves =int( 12.213978522265414 ),
+        num_class = 1)
+    model.fit(xtrain,ytrain)
+    y_test_pred = model.predict(xtest)
+    return ytest, y_test_pred
