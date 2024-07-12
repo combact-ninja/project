@@ -1,29 +1,61 @@
 import pandas as pd
+from sklearn.model_selection import train_test_split
 from transformers import BertTokenizer
 import lightgbm as lgb
-# read
-data = pd.read_csv('articles.csv', encoding='cp1252')
-print(data.shape)
+from sklearn.metrics import accuracy_score
+from nltk.corpus import stopwords
+import nltk
+import joblib
+from sklearn.pipeline import Pipeline
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import VotingClassifier
 
+import numpy as np
+
+nltk.download('stopwords')
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-two_sentences = ['this is the first sentence', 'another sentence']
-tokenized_sentences = tokenizer(two_sentences)
+def tokenize_text(text):
+    return tokenizer.encode_plus(
+        text,
+        add_special_tokens=True,
+        max_length=128,
+        padding='max_length',
+        return_attention_mask=True,
+        return_tensors='np'
+    )
+
+def classifier(xtrain, ytrain):
+    dt_classifier = DecisionTreeClassifier()
+    dt_classifier.fit(xtrain, ytrain)
+    joblib.dump(dt_classifier, 'model.pkl')
+
+def preprocessing():
+    data = pd.read_csv('articles.csv', encoding='cp1252')
+
+    data['Heading'] = data['Heading'].str.lower()
+    data['Heading'] = data['Heading'].str.replace('[^\w\s]', '')  # Punctuations
+    data['Heading'] = data['Heading'].str.replace('\d', '')  # Numbers
+    sw = stopwords.words('english')
+    data['Heading'] = data['Heading'].apply(lambda x: " ".join(x for x in str(x).split() if x not in sw))
+    data['tokenized'] = data['Heading'].apply(lambda x: tokenize_text(x)['input_ids'][0])
+    from sklearn import preprocessing
+    lab_enc = preprocessing.LabelEncoder()
+    data['label'] = lab_enc.fit_transform(data['Article_Type'])
+
+    # feat = np.array(data['tokenized'])
+    # lab = np.array(data['label'])
+
+    xtrain, xtest, ytrain, ytest = train_test_split(data['tokenized'].tolist(), data['label'], test_size=0.2,
+                                                    random_state=42)
+    return xtrain, xtest, ytrain, ytest
 
 
-def ML_MOdel(xtrain, ytrain, xtest, ytest):
-    from sklearn import metrics
-    model=lgb.LGBMClassifier(
-        boosting_type='gbdt',objective='binary',metrics='logloss',
-        feature_fraction = 0.36341113351903775 ,
-        lambda_l1 = 1.4306966747518972 ,
-        lambda_l2 = 1.1342572678210154 ,
-        learning_rate = 0.16988128303403846 ,
-        max_depth =int( 4.877875879142252 ),
-        min_data_in_leaf =int( 11.346596901866913 ),
-        min_gain_to_split = 0.9807641983846155 ,
-        min_sum_hessian_in_leaf = 0.006851449088462784 ,
-        num_leaves =int( 12.213978522265414 ),
-        num_class = 1)
-    model.fit(xtrain,ytrain)
-    y_test_pred = model.predict(xtest)
-    return ytest, y_test_pred
+xtrain, xtest, ytrain, ytest = preprocessing()
+# training
+classifier(xtrain, ytrain)
+# load
+model = joblib.load('model.pkl')
+predictions = model.predict(xtest)
+
+print('Accuracy score is  ------ > ', accuracy_score(ytest, predictions))
