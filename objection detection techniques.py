@@ -276,3 +276,84 @@ focal_length = 4.0  # mm (example focal length)
 distances = rolling_shutter_distance_estimation(video_path, camera_speed, frame_rate, sensor_height, focal_length)
 print("Estimated distances:", distances)
 
+
+#################-----------------------------------------------
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load the image captured with a rolling shutter camera
+image_path = 'rolling_shutter_image.jpg'  # Replace with your image path
+image = cv2.imread(image_path)
+
+# Convert the image to grayscale
+gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+# Use edge detection to find the distorted object's edges
+edges = cv2.Canny(gray_image, 50, 150)
+
+# Use Hough Line Transform to detect skewed lines in the distorted image
+lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=50, maxLineGap=10)
+
+# Draw the detected lines on the image to visualize them
+if lines is not None:
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        cv2.line(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+# Display the original image with detected lines
+plt.figure(figsize=(10, 6))
+plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+plt.title("Detected Lines in Distorted Image")
+plt.show()
+
+# Calculate skew angle for distance estimation
+def calculate_skew_angle(lines):
+    """
+    Calculate the average skew angle of detected lines due to the rolling shutter effect.
+    
+    Args:
+        lines (numpy array): Array of detected lines in the image.
+        
+    Returns:
+        float: Average skew angle in degrees.
+    """
+    angles = []
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            angle = np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi  # Calculate the angle of each line in degrees
+            angles.append(angle)
+    
+    # Calculate the average angle
+    return np.mean(angles) if angles else 0
+
+# Calculate the skew angle from the detected lines
+skew_angle = calculate_skew_angle(lines)
+
+# Estimate distance from skew angle
+def estimate_distance_from_skew(skew_angle, object_speed, camera_readout_time):
+    """
+    Estimates the distance to an object using the skew angle caused by the rolling shutter effect.
+    
+    Args:
+        skew_angle (float): Average skew angle in degrees.
+        object_speed (float): Speed of the moving object in m/s.
+        camera_readout_time (float): Time it takes to read the entire sensor in seconds.
+    
+    Returns:
+        float: Estimated distance to the object in meters.
+    """
+    skew_radians = np.deg2rad(skew_angle)  # Convert angle to radians
+    # Estimate distance using the known speed, skew angle, and readout time
+    estimated_distance = (object_speed * camera_readout_time) / np.tan(skew_radians)
+    return estimated_distance
+
+# Constants
+object_speed = 2  # Object speed in meters per second (m/s)
+camera_readout_time = 0.05  # Camera readout time in seconds
+
+# Estimate the distance using the skew angle
+estimated_distance = estimate_distance_from_skew(skew_angle, object_speed, camera_readout_time)
+print(f"Estimated Distance to Object: {estimated_distance:.2f} meters")
+
